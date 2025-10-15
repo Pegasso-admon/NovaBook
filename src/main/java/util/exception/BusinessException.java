@@ -1,4 +1,8 @@
-package util.exception;
+package exception;
 
-public class BusinessException {
+// Simple custom exception to manage business rule errors.
+public class BusinessException extends Exception {
+    public BusinessException(String message) {
+        super(message);
+    }
 }

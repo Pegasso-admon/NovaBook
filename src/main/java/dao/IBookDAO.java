@@ -1,6 +1,7 @@
 package dao;
 
 import model.Book;
+import java.sql.Connection; // Importar Connection
 import java.sql.SQLException;
 import java.util.List;
 
@@ -18,6 +19,14 @@ public interface IBookDAO {
     // Status management (Activation/Deactivation)
     boolean updateStatus(String isbn, boolean isActive) throws SQLException;
 
-    // Stock management methods used during Loan/Return transactions
-    boolean updateStock(String isbn, int change) throws SQLException;
+    /**
+     * Updates the available stock of a book. Used in Loan/Return transactions.
+     * CRITICAL FIX: Accepts an existing Connection for transaction management.
+     * @param isbn The ISBN of the book to update.
+     * @param change The value to add (+1 for return, -1 for loan).
+     * @param conn The JDBC connection controlled by the Service layer.
+     * @return true if the stock update was successful.
+     * @throws SQLException Database access error.
+     */
+    boolean updateStock(String isbn, int change, Connection conn) throws SQLException; // <-- CORREGIDO
 }

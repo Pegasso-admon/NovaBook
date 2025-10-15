@@ -14,7 +14,12 @@ public class BookDAOImpl implements IBookDAO {
     private static final String FIND_ALL_SQL = "SELECT * FROM books";
     private static final String UPDATE_SQL = "UPDATE books SET title = ?, author = ?, category = ?, reference_price = ?, total_copies = ?, available_copies = ?, is_active = ? WHERE isbn = ?";
     private static final String UPDATE_STATUS_SQL = "UPDATE books SET is_active = ? WHERE isbn = ?";
-    private static final String UPDATE_STOCK_SQL = "UPDATE books SET available_copies = available_copies + ? WHERE isbn = ?";
+
+    // CRITICAL FIX: The SQL for stock update is now part of the Loan transaction.
+    // Includes an explicit check (AND available_copies >= -?) to prevent negative stock
+    // (-change ensures that if change is -1 (a loan), we check if available_copies >= 1)
+    private static final String UPDATE_STOCK_SQL = "UPDATE books SET available_copies = available_copies + ? WHERE isbn = ? AND available_copies >= -?";
+
     private static final String FIND_BY_CATEGORY_SQL = "SELECT * FROM books WHERE category = ? AND is_active = TRUE";
     private static final String FIND_BY_AUTHOR_SQL = "SELECT * FROM books WHERE author = ? AND is_active = TRUE";
 
@@ -36,7 +41,8 @@ public class BookDAOImpl implements IBookDAO {
     public Book insert(Book book) throws SQLException {
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(INSERT_SQL)) {
-            // Set all book attributes in the prepared statement
+
+            // ... (parameters setting remains the same)
             ps.setString(1, book.getIsbn());
             ps.setString(2, book.getTitle());
             ps.setString(3, book.getAuthor());
@@ -55,12 +61,13 @@ public class BookDAOImpl implements IBookDAO {
     public Book findByIsbn(String isbn) throws SQLException {
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(FIND_BY_ISBN_SQL)) {
+
             ps.setString(1, isbn);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
                     return mapResultSetToBook(rs);
                 }
-                return null; // Book not found
+                return null;
             }
         }
     }
@@ -71,6 +78,7 @@ public class BookDAOImpl implements IBookDAO {
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(FIND_ALL_SQL);
              ResultSet rs = ps.executeQuery()) {
+
             while (rs.next()) {
                 books.add(mapResultSetToBook(rs));
             }
@@ -83,6 +91,7 @@ public class BookDAOImpl implements IBookDAO {
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(UPDATE_SQL)) {
 
+            // ... (parameters setting remains the same)
             ps.setString(1, book.getTitle());
             ps.setString(2, book.getAuthor());
             ps.setString(3, book.getCategory());
@@ -94,6 +103,23 @@ public class BookDAOImpl implements IBookDAO {
 
             return ps.executeUpdate() > 0;
         }
+    }
+
+    @Override
+    // CRITICAL FIX: The method now accepts the Connection object
+    public boolean updateStock(String isbn, int change, Connection conn) throws SQLException {
+        // NOTE: The Connection is managed (opened/closed/commit/rollback) by the Service layer.
+        try (PreparedStatement ps = conn.prepareStatement(UPDATE_STOCK_SQL)) {
+
+            ps.setInt(1, change);             // 1. The value to add/subtract (+1 for return, -1 for loan)
+            ps.setString(2, isbn);            // 2. The ISBN for the WHERE clause
+            ps.setInt(3, -change);            // 3. CRITICAL: The availability check (e.g., if change is -1, check is >= 1)
+
+            // If executeUpdate returns 0, it means either the ISBN didn't exist OR the
+            // availability check (available_copies >= -change) failed (e.g., stock was 0 when loaning).
+            return ps.executeUpdate() > 0;
+        }
+        // No catch/finally block for connection management, it's handled in the Service layer
     }
 
     @Override
@@ -131,16 +157,6 @@ public class BookDAOImpl implements IBookDAO {
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(UPDATE_STATUS_SQL)) {
             ps.setBoolean(1, isActive);
-            ps.setString(2, isbn);
-            return ps.executeUpdate() > 0;
-        }
-    }
-
-    @Override
-    public boolean updateStock(String isbn, int change) throws SQLException {
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(UPDATE_STOCK_SQL)) {
-            ps.setInt(1, change); // 'change' is positive for increment, negative for decrement
             ps.setString(2, isbn);
             return ps.executeUpdate() > 0;
         }
