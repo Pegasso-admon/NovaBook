@@ -3,6 +3,7 @@ package controller;
 import service.IBookService;
 import model.Book;
 import exception.BusinessException;
+import util.AppLogger;
 
 import java.sql.SQLException;
 import java.util.List;
@@ -28,8 +29,16 @@ public class BookController {
      * @throws BusinessException If ISBN exists or stock is invalid.
      * @throws SQLException Database access error.
      */
-    public Book registerBook(Book book) throws BusinessException, SQLException {
-        return bookService.register(book);
+    public Book registerBook(Book book) throws Exception {
+        AppLogger.logHttpRequest("POST", "/NovaBook/books", "Registering book: " + book.getIsbn());
+        try {
+            Book registered = bookService.register(book);
+            AppLogger.logSuccess("Book Registration", "ISBN: " + registered.getIsbn() + " - " + registered.getTitle());
+            return registered;
+        } catch (Exception e) {
+            AppLogger.logError("POST /NovaBook/books - Failed to register book: " + book.getIsbn(), e);
+            throw e;
+        }
     }
 
     /**
@@ -39,8 +48,18 @@ public class BookController {
      * @throws BusinessException If update violates business rules (e.g., stock constraint).
      * @throws SQLException Database access error.
      */
-    public boolean updateBook(Book book) throws BusinessException, SQLException {
-        return bookService.update(book);
+    public boolean updateBook(Book book) throws Exception {
+        AppLogger.logHttpRequest("PATCH", "/NovaBook/books/" + book.getIsbn(), "Updating book");
+        try {
+            boolean updated = bookService.update(book);
+            if (updated) {
+                AppLogger.logSuccess("Book Update", "ISBN: " + book.getIsbn());
+            }
+            return updated;
+        } catch (Exception e) {
+            AppLogger.logError("PATCH /NovaBook/books/" + book.getIsbn() + " - Failed", e);
+            throw e;
+        }
     }
 
     /**
@@ -50,7 +69,14 @@ public class BookController {
      * @throws SQLException Database access error.
      */
     public Book findBookByIsbn(String isbn) throws SQLException {
-        return bookService.findByIsbn(isbn);
+        AppLogger.logHttpRequest("GET", "/NovaBook/books/" + isbn, "Fetching book");
+        Book book = bookService.findByIsbn(isbn);
+        if (book != null) {
+            AppLogger.logInfo("Book found: " + book.getTitle());
+        } else {
+            AppLogger.logWarning("Book not found with ISBN: " + isbn);
+        }
+        return book;
     }
 
     /**
@@ -60,7 +86,17 @@ public class BookController {
      * @throws SQLException Database access error.
      */
     public boolean deactivateBook(String isbn) throws SQLException {
-        return bookService.updateStatus(isbn, false);
+        AppLogger.logHttpRequest("DELETE", "/NovaBook/books/" + isbn, "Deactivating book");
+        try {
+            boolean deactivated = bookService.updateStatus(isbn, false);
+            if (deactivated) {
+                AppLogger.logSuccess("Book Deactivation", "ISBN: " + isbn);
+            }
+            return deactivated;
+        } catch (Exception e) {
+            AppLogger.logError("DELETE /NovaBook/books/" + isbn + " - Failed", e);
+            throw e;
+        }
     }
 
     // --- Filtering and Listing Endpoints ---
@@ -71,7 +107,10 @@ public class BookController {
      * @throws SQLException Database access error.
      */
     public List<Book> getAllBooks() throws SQLException {
-        return bookService.findAll();
+        AppLogger.logHttpRequest("GET", "/NovaBook/books", "Fetching all books");
+        List<Book> books = bookService.findAll();
+        AppLogger.logInfo("Retrieved " + books.size() + " books");
+        return books;
     }
 
     /**
@@ -81,6 +120,9 @@ public class BookController {
      * @throws SQLException Database access error.
      */
     public List<Book> filterBooksByCategory(String category) throws SQLException {
-        return bookService.filterByCategory(category);
+        AppLogger.logHttpRequest("GET", "/NovaBook/books?category=" + category, "Filtering by category");
+        List<Book> books = bookService.filterByCategory(category);
+        AppLogger.logInfo("Found " + books.size() + " books in category: " + category);
+        return books;
     }
 }

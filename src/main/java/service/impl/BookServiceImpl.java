@@ -2,6 +2,7 @@ package service.impl;
 
 import dao.IBookDAO;
 import exception.BusinessException;
+import exception.ExistingISBNException;
 import model.Book;
 import service.IBookService;
 import java.sql.SQLException;
@@ -16,10 +17,10 @@ public class BookServiceImpl implements IBookService {
     }
 
     @Override
-    public Book register(Book book) throws BusinessException, SQLException {
+    public Book register(Book book) throws BusinessException, SQLException, ExistingISBNException {
         // Business Logic: Check for unique ISBN
         if (bookDAO.findByIsbn(book.getIsbn()) != null) {
-            throw new BusinessException("Book with ISBN '" + book.getIsbn() + "' already exists.");
+            throw new ExistingISBNException(book.getIsbn());
         }
         // Validation: Available copies cannot exceed total copies
         if (book.getAvailableCopies() > book.getTotalCopies()) {

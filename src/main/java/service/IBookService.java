@@ -1,12 +1,13 @@
 package service;
 
 import exception.BusinessException;
+import exception.ExistingISBNException;
 import model.Book;
 import java.sql.SQLException;
 import java.util.List;
 
 public interface IBookService {
-    Book register(Book book) throws BusinessException, SQLException;
+    Book register(Book book) throws BusinessException, SQLException, ExistingISBNException;
     boolean update(Book book) throws BusinessException, SQLException;
     Book findByIsbn(String isbn) throws SQLException;
     List<Book> findAll() throws SQLException;
